@@ -4,8 +4,27 @@
 Single thread implementation
 '''
 
-import time
+import datetime
 import sys
+
+
+def get_time_with_tens_of_seconds_precision(dt):
+    '''
+    <dt> is a datetime.datetime object
+    '''
+    def round_microseconds(microseconds):
+        return (round(microseconds / 10**5)) * 10**5
+
+    rounded_time = datetime.datetime(
+        year=dt.year,
+        month=dt.month,
+        day=dt.day,
+        hour=dt.hour,
+        minute=dt.minute,
+        second=dt.second,
+        microsecond=0,
+    ) + datetime.timedelta(microseconds=round_microseconds(dt.microsecond))
+    return rounded_time
 
 
 class Foobartory:
