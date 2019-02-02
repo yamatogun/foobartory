@@ -6,25 +6,7 @@ Single thread implementation
 
 import datetime
 import sys
-
-
-def get_time_with_tens_of_seconds_precision(dt):
-    '''
-    <dt> is a datetime.datetime object
-    '''
-    def round_microseconds(microseconds):
-        return (round(microseconds / 10**5)) * 10**5
-
-    rounded_time = datetime.datetime(
-        year=dt.year,
-        month=dt.month,
-        day=dt.day,
-        hour=dt.hour,
-        minute=dt.minute,
-        second=dt.second,
-        microsecond=0,
-    ) + datetime.timedelta(microseconds=round_microseconds(dt.microsecond))
-    return rounded_time
+from collections import OrderedDict
 
 
 class Foobartory:
@@ -32,59 +14,74 @@ class Foobartory:
     nbar = 0
     nfoobar = 0
 
-    elapsed_time = 0
-    robots = []
+    schedule = OrderedDict()  # timestamps with corresponding robots
 
     def __init__(self, nrobots=2):
         for _ in range(nrobots):
-            self.robots.append(Robot(self.elapsed_time))
+            robot = Robot(start_time=datetime.datetime.now())
+            self.register_robot(robot)
+
+    def register_robot(self, robot):
+        end_time = robot.end_time
+        self.schedule.setdefault(end_time, [])
+        self.schedule[end_time].append(robot)
+        self.schedule = OrderedDict(
+            sorted(self.schedule.items(), key=lambda x: x[0])
+        )
+        print(self.schedule)
+        self.next_action_time = next(iter(self.schedule.items()))[0]
 
     def go(self):
+        assert self.schedule, 'there should be at least one robot'
         while True:
-            time.sleep(.5)
-            for robot in self.robots:
-                robot.update()
-                print('nfoo: ', self.nfoo)
+            current_time = datetime.datetime.now()
+            if current_time >= self.next_action_time:
+                robots = self.schedule.popitem(last=False)[1]
+                for robot in robots:
+                    robot.work()
 
-                if self.nfoo >= 100:
-                    sys.exit()
+                    if self.nfoo >= 100:
+                        sys.exit()
+
+                    self.register_robot(robot)
 
 
 class Robot:
-    TIME_PER_TASK = {
+    DURATIONS = {  # in seconds
         'mine_foo': 1,
     }
 
     robot_counter = 0
 
     def __init__(self, start_time):
-        self.start_time = self.current_time = start_time  # provided by factory
+        self.choose_task()
+        self.start_time = start_time  # provided by factory
 
         self.name = self.robot_counter
         Robot.robot_counter += 1
-
-        self.choose_task()
 
     def __str__(self):
         return '<Robot {}>'.format(self.name)
 
     @property
-    def task_time(self):
-        return self.current_time - self.start_time
+    def end_time(self):
+        assert self.current_task in self.DURATIONS
+        task_duration = datetime.timedelta(
+            seconds=self.DURATIONS[self.current_task]
+        )
+        return self.start_time + task_duration
 
     def choose_task(self):
         self.current_task = 'mine_foo'
+        # TODO: to complete 
 
-    def update(self):
-        self.current_time += 1
-        if self.task_time == Robot.TIME_PER_TASK[self.current_task]:
-            task = getattr(self, self.current_task)
-            task()
-            self.reinit_time()
-            self.choose_task()
+    def work(self):
+        task = getattr(self, self.current_task)()
+        self.choose_task()
+        self.reinit_time()
 
     def reinit_time(self):
-        self.start_time = self.current_time
+        self.start_time = datetime.datetime.now()
 
     def mine_foo(self):
         print('calling mine foo for:', self)
