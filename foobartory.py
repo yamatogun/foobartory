@@ -4,6 +4,7 @@
 Single thread implementation
 '''
 
+from abc import ABC, abstractmethod
 from collections import OrderedDict
 import datetime
 import random
@@ -11,54 +12,117 @@ import re
 import sys
 
 
-class Foobartory:
+class Agent(ABC):
+    """
+    Entity that is assigned a task to perform at a given moment
+    Both Foobartory and Robot are Agents
+    """
+    def __init__(self):
+        self.current_task = None
+        self.choose_task()
+        self.start_time = datetime.datetime.now()
+
+    @abstractmethod
+    def choose_task():
+        """
+        set self.current_task
+        """
+        pass
+
+
+    @abstractmethod
+    def get_end_time():
+        pass
+
+    def work(self):
+        print('self.current_task: ', self.current_task)
+        task = getattr(self, self.current_task)()
+        self.choose_task()
+        self.reinit_time()
+
+    def reinit_time(self):
+        self.start_time = datetime.datetime.now()
+
+
+class Foobartory(Agent):
     foos = []
     bars = []
     foobars = []
+    money = 0
 
     schedule = OrderedDict()  # timestamps with corresponding robots
 
     def __init__(self, nrobots=2):
-        for _ in range(nrobots):
-            robot = Robot(start_time=datetime.datetime.now())
-            self.register_robot(robot)
+        super().__init__()
 
-    def register_robot(self, robot):
-        end_time = robot.end_time
+        for _ in range(nrobots):
+            robot = Robot()
+            self.register_agent(robot)
+
+        # actions from the foobartory have to be registered as well
+        self.register_agent(self)
+
+    def register_agent(self, agent):
+        end_time = agent.get_end_time()
         self.schedule.setdefault(end_time, [])
-        self.schedule[end_time].append(robot)
+        self.schedule[end_time].append(agent)
         self.schedule = OrderedDict(
             sorted(self.schedule.items(), key=lambda x: x[0])
         )
         print(self.schedule)
         self.next_action_time = next(iter(self.schedule.items()))[0]
 
+    def sell_foobar(self):
+        # check if there still are foobars first
+        if self.foobars:
+            nsold_max = min(5, len(self.foobars))
+            nsold = random.randint(1, nsold_max)
+            for _ in range(nsold):
+                self.foobars.pop()
+            print('selling {} foobars by Foobartory'.format(nsold))
+            self.money += nsold
+        else:
+            print('no foobar to sell')
+
+    def choose_task(self):
+        self.current_task = 'sell_foobar'
+        # TODO: complete with buy
+
+    def get_end_time(self):
+        if self.current_task == 'sell_foobar':
+            duration = 10
+        return datetime.datetime.now() + datetime.timedelta(seconds=duration)
+
     def go(self):
         assert self.schedule, 'there should be at least one robot'
         while True:
             current_time = datetime.datetime.now()
             if current_time >= self.next_action_time:
-                robots = self.schedule.popitem(last=False)[1]
-                for robot in robots:
-                    robot.work()
+                agents = self.schedule.popitem(last=False)[1]
+                for agent in agents:  # TODO: remove list ?
+                    agent.work()
 
                     #if self.nfoo >= 100:
                     #    sys.exit()
 
-                    print('nfoo: ', len(self.foos), '\nnbar: ', len(self.bars), '\nnfoobar: ', len(self.foobars))
-                    if len(self.foobars) == 3:
+                    print('nfoo: ', len(self.foos), '\nnbar: ', len(self.bars),
+                          '\nnfoobar: ', len(self.foobars), '\nmoney: ',
+                          self.money)
+
+                    #if len(self.foobars) == 3:
+                    #    sys.exit()
+
+                    if self.money >= 20:
                         sys.exit()
 
-                    self.register_robot(robot)
+                    self.register_agent(agent)
 
 
-class Robot:
+class Robot(Agent):
     robot_counter = 0
 
-    def __init__(self, start_time):
-        self.current_task = None
-        self.choose_task()
-        self.start_time = start_time  # provided by factory
+    def __init__(self):
+        super().__init__()
 
         self.name = self.robot_counter
         Robot.robot_counter += 1
@@ -66,8 +130,7 @@ class Robot:
     def __str__(self):
         return '<Robot {}>'.format(self.name)
 
-    @property
-    def end_time(self):
+    def get_end_time(self):
         if self.current_task == 'mine_foo':
             duration = 1  # TODO: conf ?
         elif self.current_task == 'mine_bar':
@@ -107,16 +170,6 @@ class Robot:
             else:
                 self.current_task = 'change_to_bar'
 
-    def work(self):
-        task_name = re.sub('(?<=change).+', '_task', self.current_task)
-        print('self.current_task: ', task_name)
-        task = getattr(self, task_name)()
-        self.choose_task()
-        self.reinit_time()
-
-    def reinit_time(self):
-        self.start_time = datetime.datetime.now()
-
     def mine_foo(self):
         print('mining foo with:', self)
         Foobartory.foos.append(Foo())
@@ -142,7 +195,14 @@ class Robot:
                 print('create foobar: FAILURE')
                 Foobartory.foos.pop()
 
-    def change_task(self):
+
+    def change_to_foo(self):
+        pass
+
+    def change_to_bar(self):
+        pass
+
+    def change_to_foobar(self):
         pass
 
 
