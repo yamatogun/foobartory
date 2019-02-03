@@ -12,9 +12,9 @@ import sys
 
 
 class Foobartory:
-    nfoo = 0
-    nbar = 0
-    nfoobar = 0
+    foos = []
+    bars = []
+    foobars = []
 
     schedule = OrderedDict()  # timestamps with corresponding robots
 
@@ -45,8 +45,8 @@ class Foobartory:
                     #if self.nfoo >= 100:
                     #    sys.exit()
 
-                    print('nfoo: ', self.nfoo, '\nnbar: ', self.nbar, '\nnfoobar: ', self.nfoobar)
-                    if self.nfoobar == 3:
+                    print('nfoo: ', len(self.foos), '\nnbar: ', len(self.bars), '\nnfoobar: ', len(self.foobars))
+                    if len(self.foobars) == 3:
                         sys.exit()
 
                     self.register_robot(robot)
@@ -82,7 +82,7 @@ class Robot:
 
     def choose_task(self):
         self.previous_task = self.current_task
-        if Foobartory.nfoo <= 6:  # always keep at least 6 foos to buy robots
+        if len(Foobartory.foos) <= 6:  # always keep at least 6 foos to buy robots
             if (
                 self.previous_task == 'mine_foo' or
                 self.previous_task == 'change_to_foo'
@@ -90,7 +90,7 @@ class Robot:
                 self.current_task = 'mine_foo'
             else:
                 self.current_task = 'change_to_foo'
-        elif Foobartory.nbar > 0:
+        elif Foobartory.bars:
             if (
                 self.previous_task == 'make_foobar' or
                 self.previous_task == 'change_to_foobar'
@@ -119,26 +119,56 @@ class Robot:
 
     def mine_foo(self):
         print('mining foo with:', self)
-        Foobartory.nfoo += 1
+        Foobartory.foos.append(Foo())
 
     def mine_bar(self):
         print('mining bar with :', self)
-        Foobartory.nbar += 1
+        Foobartory.bars.append(Bar())
 
     def make_foobar(self):
         print('making foobar with :', self)
         # first check stocks because it could have change meanwhile
-        if Foobartory.nfoo > 0 and Foobartory.nbar > 0:
+        if Foobartory.foos and Foobartory.bars:
             success = True if random.random() < 0.6 else False
             if success:
-                Foobartory.nfoo -= 1
-                Foobartory.nbar -= 1
-                Foobartory.nfoobar += 1
+                print('create foobar: SUCCESS')
+                Foobartory.foobars.append(
+                    FooBar(
+                        Foobartory.foos.pop(),
+                        Foobartory.bars.pop(),
+                    )
+                )
             else:
-                Foobartory.nfoo -= 1
+                print('create foobar: FAILURE')
+                Foobartory.foos.pop()
 
     def change_task(self):
         pass
+
+
+class Base:
+    ninstances = 0
+
+    def __init__(self):
+        self.__class__.ninstances += 1
+
+class Foo(Base):
+    def __init__(self):
+        super().__init__()
+        self.id = 'F{}'.format(self.ninstances)
+        print('{} instance n°{}'.format(self.__class__.__name__, self.id))
+
+
+class Bar(Base):
+    def __init__(self):
+        super().__init__()
+        self.id = 'B{}'.format(self.ninstances)
+        print('{} instance n°{}'.format(self.__class__.__name__, self.id))
+
+class FooBar:
+    def __init__(self, foo, bar):
+        self.id = '{fid}:{bid}'.format(fid=foo.id, bid=bar.id)
+        print('created {} n°{}'.format(self.__class__.__name__, self.id))
 
 
 if __name__ == '__main__':
