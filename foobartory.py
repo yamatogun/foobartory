@@ -4,13 +4,15 @@
 Single thread implementation
 '''
 
-import datetime
-import sys
 from collections import OrderedDict
+import datetime
+import random
+import re
+import sys
 
 
 class Foobartory:
-    nfoo = 0  # TODO: read about class attributes
+    nfoo = 0
     nbar = 0
     nfoobar = 0
 
@@ -40,20 +42,21 @@ class Foobartory:
                 for robot in robots:
                     robot.work()
 
-                    if self.nfoo >= 100:
+                    #if self.nfoo >= 100:
+                    #    sys.exit()
+
+                    print('nfoo: ', self.nfoo, '\nnbar: ', self.nbar, '\nnfoobar: ', self.nfoobar)
+                    if self.nfoobar == 3:
                         sys.exit()
 
                     self.register_robot(robot)
 
 
 class Robot:
-    DURATIONS = {  # in seconds
-        'mine_foo': 1,
-    }
-
     robot_counter = 0
 
     def __init__(self, start_time):
+        self.current_task = None
         self.choose_task()
         self.start_time = start_time  # provided by factory
 
@@ -65,18 +68,49 @@ class Robot:
 
     @property
     def end_time(self):
-        assert self.current_task in self.DURATIONS
-        task_duration = datetime.timedelta(
-            seconds=self.DURATIONS[self.current_task]
-        )
-        return self.start_time + task_duration
+        if self.current_task == 'mine_foo':
+            duration = 1  # TODO: conf ?
+        elif self.current_task == 'mine_bar':
+            duration = random.uniform(.5, 2)
+        elif self.current_task == 'make_foobar':
+            duration = 2
+        elif 'change' in self.current_task:
+            duration = 3  # 20
+        else:
+            assert False
+        return self.start_time + datetime.timedelta(seconds=duration)
 
     def choose_task(self):
-        self.current_task = 'mine_foo'
-        # TODO: to complete 
+        self.previous_task = self.current_task
+        if Foobartory.nfoo <= 6:  # always keep at least 6 foos to buy robots
+            if (
+                self.previous_task == 'mine_foo' or
+                self.previous_task == 'change_to_foo'
+            ):
+                self.current_task = 'mine_foo'
+            else:
+                self.current_task = 'change_to_foo'
+        elif Foobartory.nbar > 0:
+            if (
+                self.previous_task == 'make_foobar' or
+                self.previous_task == 'change_to_foobar'
+            ):
+                self.current_task = 'make_foobar'
+            else:
+                self.current_task = 'change_to_foobar'
+        else:  # nfoo > 6 and nbar == 0
+            if (
+                self.previous_task == 'mine_bar' or
+                self.previous_task == 'change_to_bar'
+            ):
+                self.current_task = 'mine_bar'
+            else:
+                self.current_task = 'change_to_bar'
 
     def work(self):
-        task = getattr(self, self.current_task)()
+        task_name = re.sub('(?<=change).+', '_task', self.current_task)
+        print('self.current_task: ', task_name)
+        task = getattr(self, task_name)()
         self.choose_task()
         self.reinit_time()
 
@@ -84,8 +118,27 @@ class Robot:
         self.start_time = datetime.datetime.now()
 
     def mine_foo(self):
-        print('calling mine foo for:', self)
+        print('mining foo with:', self)
         Foobartory.nfoo += 1
+
+    def mine_bar(self):
+        print('mining bar with :', self)
+        Foobartory.nbar += 1
+
+    def make_foobar(self):
+        print('making foobar with :', self)
+        # first check stocks because it could have change meanwhile
+        if Foobartory.nfoo > 0 and Foobartory.nbar > 0:
+            success = True if random.random() < 0.6 else False
+            if success:
+                Foobartory.nfoo -= 1
+                Foobartory.nbar -= 1
+                Foobartory.nfoobar += 1
+            else:
+                Foobartory.nfoo -= 1
+
+    def change_task(self):
+        pass
 
 
 if __name__ == '__main__':
