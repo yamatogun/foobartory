@@ -48,7 +48,9 @@ class Foobartory(Agent):
     foos = []
     bars = []
     foobars = []
+
     money = 0
+    nrobots = 0
 
     schedule = OrderedDict()  # timestamps with corresponding robots
 
@@ -58,9 +60,22 @@ class Foobartory(Agent):
         for _ in range(nrobots):
             robot = Robot()
             self.register_agent(robot)
+        self.nrobots += nrobots
 
         # actions from the foobartory have to be registered as well
         self.register_agent(self)
+
+    @property
+    def nfoos(self):
+        return len(self.foos)
+
+    @property
+    def nbars(self):
+        return len(self.bars)
+
+    @property
+    def nfoobars(self):
+        return len(self.foobars)
 
     def register_agent(self, agent):
         end_time = agent.get_end_time()
@@ -69,10 +84,9 @@ class Foobartory(Agent):
         self.schedule = OrderedDict(
             sorted(self.schedule.items(), key=lambda x: x[0])
         )
-        print(self.schedule)
         self.next_action_time = next(iter(self.schedule.items()))[0]
 
-    def sell_foobar(self):
+    def sell_foobar_and_buy_robots(self):
         # check if there still are foobars first
         if self.foobars:
             nsold_max = min(5, len(self.foobars))
@@ -84,14 +98,21 @@ class Foobartory(Agent):
         else:
             print('no foobar to sell')
 
+        # handle the case where there are not foos enough anymore
+        nrobots = min(self.money // 3, self.nfoos // 6)
+        print('{} robots bought'.format(nrobots))
+        if nrobots:
+            for _ in range(nrobots):
+                self.register_agent(Robot())
+            self.nrobots += nrobots
+            Foobartory.foos = self.foos[:-6*nrobots]
+            Foobartory.money -= 3 * nrobots
+
     def choose_task(self):
-        self.current_task = 'sell_foobar'
-        # TODO: complete with buy
+        self.current_task = 'sell_foobar_and_buy_robots'
 
     def get_end_time(self):
-        if self.current_task == 'sell_foobar':
-            duration = 10
-        return datetime.datetime.now() + datetime.timedelta(seconds=duration)
+        return datetime.datetime.now() + datetime.timedelta(seconds=10)
 
     def go(self):
         assert self.schedule, 'there should be at least one robot'
@@ -101,18 +122,13 @@ class Foobartory(Agent):
                 agents = self.schedule.popitem(last=False)[1]
                 for agent in agents:  # TODO: remove list ?
                     agent.work()
-
-                    #if self.nfoo >= 100:
-                    #    sys.exit()
-
+                    print('current_time: ', current_time)
+                    print('action time: ', self.next_action_time)
                     print('nfoo: ', len(self.foos), '\nnbar: ', len(self.bars),
                           '\nnfoobar: ', len(self.foobars), '\nmoney: ',
-                          self.money)
+                          self.money, '\nnrobots: ', self.nrobots)
 
-                    #if len(self.foobars) == 3:
-                    #    sys.exit()
-
-                    if self.money >= 20:
+                    if self.nrobots >= 100:
                         sys.exit()
 
                     self.register_agent(agent)
@@ -144,6 +160,7 @@ class Robot(Agent):
         return self.start_time + datetime.timedelta(seconds=duration)
 
     def choose_task(self):
+        # TODO: replace len by properties
         self.previous_task = self.current_task
         if len(Foobartory.foos) <= 6:  # always keep at least 6 foos to buy robots
             if (
