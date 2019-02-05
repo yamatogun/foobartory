@@ -1,11 +1,6 @@
 #!/usr/bin/python3
 
-'''
-Single thread implementation
-'''
-
 from abc import ABC, abstractmethod
-from collections import OrderedDict
 import datetime
 import random
 import re
@@ -52,7 +47,7 @@ class Foobartory(Agent):
     money = 0
     nrobots = 0
 
-    schedule = OrderedDict()  # timestamps with corresponding robots
+    schedule = []  # list of (endtime, agent)
 
     def __init__(self, nrobots=2):
         super().__init__()
@@ -79,12 +74,14 @@ class Foobartory(Agent):
 
     def register_agent(self, agent):
         end_time = agent.get_end_time()
-        self.schedule.setdefault(end_time, [])
-        self.schedule[end_time].append(agent)
-        self.schedule = OrderedDict(
-            sorted(self.schedule.items(), key=lambda x: x[0])
-        )
-        self.next_action_time = next(iter(self.schedule.items()))[0]
+        Foobartory.schedule.append((end_time, agent))
+        Foobartory.schedule.sort(key=lambda x: x[0])
+        # NB: maybe an orderedict + time segmentation could be a way
+        # to deal with high number of robots and prevent
+        # from sorting the list all the time
+        # Doesn't seem necessary with 100 robots
+
+        self.next_end_time =  Foobartory.schedule[0][0]
 
     def sell_foobar_and_buy_robots(self):
         # check if there still are foobars first
@@ -94,7 +91,7 @@ class Foobartory(Agent):
             for _ in range(nsold):
                 self.foobars.pop()
             print('selling {} foobars by Foobartory'.format(nsold))
-            self.money += nsold
+            Foobartory.money += nsold
         else:
             print('no foobar to sell')
 
@@ -112,26 +109,31 @@ class Foobartory(Agent):
         self.current_task = 'sell_foobar_and_buy_robots'
 
     def get_end_time(self):
-        return datetime.datetime.now() + datetime.timedelta(seconds=10)
+        return datetime.datetime.now() + datetime.timedelta(seconds=5)  # 10
 
     def go(self):
         assert self.schedule, 'there should be at least one robot'
         while True:
             current_time = datetime.datetime.now()
-            if current_time >= self.next_action_time:
-                agents = self.schedule.popitem(last=False)[1]
-                for agent in agents:  # TODO: remove list ?
-                    agent.work()
-                    print('current_time: ', current_time)
-                    print('action time: ', self.next_action_time)
-                    print('nfoo: ', len(self.foos), '\nnbar: ', len(self.bars),
-                          '\nnfoobar: ', len(self.foobars), '\nmoney: ',
-                          self.money, '\nnrobots: ', self.nrobots)
+            if current_time >= self.next_end_time:
+                agent = Foobartory.schedule.pop(0)[1]
 
-                    if self.nrobots >= 100:
-                        sys.exit()
+                agent.work()
+                print('current_time: ', current_time)
+                print('action time: ', self.next_end_time)
+                print(
+                    'nfoo: ', len(self.foos),
+                    '\nnbar: ', len(self.bars),
+                    '\nnfoobar: ', len(self.foobars),
+                    '\nmoney: ', Foobartory.money,
+                    '\nnrobots: ', self.nrobots,
+                    '\n'
+                )
 
-                    self.register_agent(agent)
+                if self.nrobots >= 100:
+                    sys.exit()
+
+                self.register_agent(agent)
 
 
 class Robot(Agent):
